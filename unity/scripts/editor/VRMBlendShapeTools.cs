@@ -139,15 +139,20 @@ namespace Mysteryem.Tools {
             // Disable button if there is no face SkinnedMeshRenderer
             using (new EditorGUI.DisabledScope(disableAddButton)) {
                 // Draw button for 
+                if (GUILayout.Button("Replace existing or add ARKit BlendShapeClips")) {
+                    // We've already filtered the SkinnedMeshRenders for those with non-null sharedMesh so we assume this is non-null
+                    Mesh mesh = faceRenderer.sharedMesh;
+                    AddARKitBlendShapeClips(mesh, meshRelativePath, true);
+                }
                 if (GUILayout.Button("Add ARKit BlendShapeClips")) {
                     // We've already filtered the SkinnedMeshRenders for those with non-null sharedMesh so we assume this is non-null
                     Mesh mesh = faceRenderer.sharedMesh;
-                    AddARKitBlendShapeClips(mesh, meshRelativePath);
+                    AddARKitBlendShapeClips(mesh, meshRelativePath, false);
                 }
             }
         }
         
-        private void AddARKitBlendShapeClips(Mesh mesh, string meshRelativePath) {
+        private void AddARKitBlendShapeClips(Mesh mesh, string meshRelativePath, bool replaceExisting) {
             // Create dictionary to look up shape key indices, lower-casing shape key names if case sensitive is not ticked
             Dictionary<string, int> lowerNameToIndex = new Dictionary<string, int>();
             for (int i = 0; i < mesh.blendShapeCount; i++) {
@@ -159,68 +164,75 @@ namespace Mysteryem.Tools {
                 lowerNameToIndex[blendShapeName] = i;
             }
             
-
             List<string> clipFileAlreadyExistsList = new List<string>();
             List<string> clipBlendShapeNotFoundList = new List<string>();
             
             for (int i = 0; i < ARKIT_NAMES.Length; i++) {
                 var clipKey = ARKIT_KEYS[i];
                 var clipName = ARKIT_NAMES[i];
-                var clipFromAvatar = this.blendShapeAvatar.GetClip(clipKey);
+                var clip = this.blendShapeAvatar.GetClip(clipKey);
+                bool noExistingClip = clip == null;
                 
-                // Only proceed if the BlendShapeAvatar doesn't already have a BlendShapeClip with this key assigned
-                if (clipFromAvatar == null) {
-                    string clipPath = this.GetClipPath(ARKIT_NAMES[i]);
-                    var clipFromFile = UnityEditor.AssetDatabase.LoadAssetAtPath<BlendShapeClip>(clipPath);
-                    
-                    // Only proceed if the file for the BlendShapeClip doesn't exist
-                    if (clipFromFile == null) {
-                        int blendShapeIndex;
-                        // Combine the prefix, suffix and ARKit name to get the expected name of the blendshape on the mesh
-                        string blendShapeName = this.blendShapePrefix
-                                                + (this.blendShapeNameCaseSensitive ? ARKIT_NAMES[i] : ARKIT_NAMES_LOWER[i])
-                                                + this.blendShapeSuffix;
-                        // Get the index of the blendshape on the face mesh if it exists
-                        if (lowerNameToIndex.TryGetValue(blendShapeName, out blendShapeIndex)) {
-                            // Create the Binding which will specify the blendshape to activate
-                            var binding = new BlendShapeBinding
-                            {
-                                RelativePath = meshRelativePath,
-                                Index = blendShapeIndex,
-                                Weight = 100f,
-                            };
-                            
+                // If there's no existing clip or we're replacing existing clips
+                if (noExistingClip || replaceExisting) {
+                    // Combine the prefix, suffix and ARKit name to get the expected name of the blendshape on the mesh
+                    string blendShapeName = this.blendShapePrefix
+                                            + (this.blendShapeNameCaseSensitive ? ARKIT_NAMES[i] : ARKIT_NAMES_LOWER[i])
+                                            + this.blendShapeSuffix;
+                                            
+                    // Get the index of the blendshape on the face mesh if it exists
+                    int blendShapeIndex;
+                    if (lowerNameToIndex.TryGetValue(blendShapeName, out blendShapeIndex)) {
+                        // If the clip doesn't exist, create a new one
+                        if (noExistingClip) {
                             // Create a new BlendShapeClip
                             // This is probably the slowest part since each call creates and then imports an asset
-                            var clip = BlendShapeAvatar.CreateBlendShapeClip(clipPath);
-                            
-                            // Set the list of Bindings (just our one binding)
-                            clip.Values = new BlendShapeBinding[]{binding};
-                            // The default value should be false so no need to set this
-                            //clip.IsBinary = false;
-                            
+                            // We'll make sure the path for the asset is unique by appending "(#)" to the path and incrementing # until no existing asset is found
+                            string clipPath = GetUniqueAssetPath(this.GetClipPath(ARKIT_NAMES[i]));
+                            clip = BlendShapeAvatar.CreateBlendShapeClip(clipPath);
+                        } else {
+                            clipFileAlreadyExistsList.Add(AssetDatabase.GetAssetPath(clip));
+                        }
+                        // Create the Binding which will specify the blendshape to activate
+                        var binding = new BlendShapeBinding
+                        {
+                            RelativePath = meshRelativePath,
+                            Index = blendShapeIndex,
+                            Weight = 100f,
+                        };
+                        
+                        // Set the list of Bindings (just our one binding)
+                        // If the clip already exists, this will replace ALL the existing bindings
+                        clip.Values = new BlendShapeBinding[]{binding};
+                        
+                        // The default value should be false so no need to set this
+                        //clip.IsBinary = false;
+                        
+                        if (noExistingClip) {
                             // Set the newly created clip in the BlendShapeAvatar
                             blendShapeAvatar.SetClip(clipKey, clip);
                             
                             // BlendShapeAvatar.CreateBlendShapeClip(...) has some commented out lines that do this along with AssetDatabase.SaveAssets()
                             // Without these, the changes to not necessarily get saved
                             EditorUtility.SetDirty(this.blendShapeAvatar);
-                        } else {
-                            clipBlendShapeNotFoundList.Add(blendShapeName);
                         }
+                        
                     } else {
-                        clipFileAlreadyExistsList.Add(clipPath);
+                        // No suitable blendshape found
+                        clipBlendShapeNotFoundList.Add(blendShapeName);
                     }
                 }
             }
             AssetDatabase.SaveAssets();
             
             if (clipFileAlreadyExistsList.Count != 0) {
-                Debug.Log("Failed to create some BlendShapeClips as the files already exist, but are not part of the BlendShapeAvatar:\n" + String.Join("\n", clipFileAlreadyExistsList));
+                if (replaceExisting) {
+                    Debug.Log("Replaced existing BlendShapeClips:\n" + String.Join("\n", clipFileAlreadyExistsList));
+                }
             }
             
             if (clipBlendShapeNotFoundList.Count != 0) {
-                Debug.Log("Failed to create some BlendShapeClips as the blendshapes could not be found on the face mesh" + (this.blendShapeNameCaseSensitive ? "" : " (case insensitive)") + ":\n" + String.Join("\n", clipBlendShapeNotFoundList));
+                Debug.Log("Failed to create/replace some BlendShapeClips as the blendshapes could not be found on the face mesh" + (this.blendShapeNameCaseSensitive ? "" : " (case insensitive)") + ":\n" + String.Join("\n", clipBlendShapeNotFoundList));
             }
         }
         
@@ -239,6 +251,28 @@ namespace Mysteryem.Tools {
             }
             
             return indexToReturn;
+        }
+        
+        private static string GetUniqueAssetPath(string basePath) {
+            var guid = AssetDatabase.AssetPathToGUID(basePath);
+            if (guid == null) {
+                // Not found
+                return basePath;
+            }
+            
+            string newPath;
+            
+            // Won't loop forever, but 
+            for (int i = 1; i < int.MaxValue; i++) {
+                newPath = basePath + "(" + i + ")";
+                guid = AssetDatabase.AssetPathToGUID(newPath);
+                if (guid == null) {
+                    // Not found
+                    return newPath;
+                }
+            }
+            // Realistically should never return null
+            return null;
         }
     }
 }
