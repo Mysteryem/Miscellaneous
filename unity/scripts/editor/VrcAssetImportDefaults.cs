@@ -59,12 +59,6 @@ namespace Mysteryem.Tools.Vrc {
                 //modelImporter.normalSmoothingSource = ModelImporterNormalSmoothingSource.FromSmoothingGroups;
                 // This might result in different behaviour when some of the meshes don't have blendshapes however
             }
-            
-            // VRChat only allows up to 4 bones per vertex, any vertices with more than 4 will have their lowest bone weights
-            // bones discarded until there are only 4
-            if (modelImporter.maxBonesPerVertex > 5) {
-                Debug.LogWarning(modelImporter.assetPath + " has vertices weight painted to more than 4 bones. The lowest bone weights will be discarded by VRChat until there are only 4, regardless of the Skin Weights setting in the Rig tab of the model import settings.");
-            }
         }
         
         // Enables streaming mipmaps on textures
@@ -74,6 +68,9 @@ namespace Mysteryem.Tools.Vrc {
             
             // If it's a new import into a project, it won't have an existing meta file
             if (textureImporter.importSettingsMissing) {
+                // Log that we're doing something
+                Debug.Log("Detected initial import of texture " + textureImporter.assetPath + ". Enabling Streaming Mipmaps");
+                
                 // Streaming mipmaps must be enabled to upload to VRC
                 textureImporter.streamingMipmaps = true;
             }
