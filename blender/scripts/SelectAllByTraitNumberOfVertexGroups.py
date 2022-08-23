@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Select All By Trait: Number Of Vertex Groups",
     "author": "Mysteryem",
-    "version": (1, 0, 0),
+    "version": (1, 0, 1),
     "blender": (2, 93, 7),  # Older versions have not been tested
     "location": "Select > Select All By Trait > Number of Vertex Groups",
     "tracker_url": "https://github.com/Mysteryem/Miscellaneous/issues",
@@ -36,8 +36,10 @@ _subset_other = 'OTHER_DEFORM'
 
 def get_deform_indices(obj):
     vg_names_to_indices = {vg.name: i for i, vg in enumerate(obj.vertex_groups)}
-    valid_mod_bones_gen = (mod.object.data.bones for mod in obj.modifiers if mod.type == 'ARMATURE' and mod.object and mod.show_viewport)
-    deform_indices = {vg_names_to_indices[bone.name] for bones in valid_mod_bones_gen for bone in bones if bone.name in vg_names_to_indices}
+    valid_mod_bones_gen = (mod.object.pose.bones for mod in obj.modifiers if mod.type == 'ARMATURE' and mod.object and mod.show_viewport)
+    all_bones_gen = (pose_bone.bone for pose_bones in valid_mod_bones_gen for pose_bone in pose_bones)
+    deform_bones_only = filter(lambda bone: bone.use_deform and bone.name in vg_names_to_indices, all_bones_gen)
+    deform_indices = {vg_names_to_indices[bone.name] for bone in deform_bones_only}
     return deform_indices
 
 
@@ -215,6 +217,9 @@ class MYSTERYEM_select_all_my_trait_number_vertex_groups(OperatorMixin, bpy.type
                     if extend and not select:
                         continue
                     
+                    # I would have used the operator for selecting/deselecting all, but it ignores context overrides
+                    # meaning there's no way to stop it from acting on all the meshes opened in multi-editing when we
+                    # only want it to act on the current mesh being iterated
                     for bmvert in bm.verts:
                         bmvert.select = select
 
