@@ -43,23 +43,18 @@ def select_shape_key_verts_alt(min_distance = 0):
     active_shape_key = obj.active_shape_key
     # If not in edit mode or there's no active shape key, don't do anything
     if obj.mode == 'EDIT' and active_shape_key != None :
-        # Without swapping to OBJECT mode, any changes that were just made to the shape key will not be reflected in the bmesh so we quickly swap to OBJECT mode and then back
-        # Maybe there's a better way to do this, but I couldn't find one
-        bpy.ops.object.mode_set(mode = 'OBJECT')
-        bpy.ops.object.mode_set(mode = 'EDIT')
         # Using squared distances is a minor optimisation since it avoids square roots
         min_distance_squared = min_distance * min_distance
         # Create the bmesh
         bm = bmesh.from_edit_mesh(obj.data)
         # Vertex selection mode since that's what we'll be selecting
         bm.select_mode = {'VERT'}
-        # Get the layer for the active (selected) shape key
-        shape_layer = bm.verts.layers.shape[obj.active_shape_key_index]
         # Get the layer for the shape key that the active shape key is relative to
         relative_shape_layer = bm.verts.layers.shape[active_shape_key.relative_key.name]
         # Go through every vertex comparing the difference between that vertex in both shape keys, selecting those that are further apart than the min_distance argument
         for v in bm.verts:
-            difference = v[shape_layer] - v[relative_shape_layer]
+            # In a from_edit_mesh bmesh, the BMVert.co corresponds to the active shape key position, accessing via the active shape's layer will not give up-to-date values
+            difference = v.co - v[relative_shape_layer]
             if difference.length_squared > min_distance_squared:
                 v.select = True
         # Flush the selection changes
