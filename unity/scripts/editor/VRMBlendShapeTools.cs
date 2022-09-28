@@ -255,7 +255,7 @@ namespace Mysteryem.Tools {
         
         private static string GetUniqueAssetPath(string basePath) {
             var guid = AssetDatabase.AssetPathToGUID(basePath);
-            if (guid == null) {
+            if (string.IsNullOrEmpty(guid)) {
                 // Not found
                 return basePath;
             }
@@ -266,7 +266,7 @@ namespace Mysteryem.Tools {
             for (int i = 1; i < int.MaxValue; i++) {
                 newPath = basePath + "(" + i + ")";
                 guid = AssetDatabase.AssetPathToGUID(newPath);
-                if (guid == null) {
+                if (string.IsNullOrEmpty(guid)) {
                     // Not found
                     return newPath;
                 }
