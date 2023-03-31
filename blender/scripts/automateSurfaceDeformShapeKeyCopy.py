@@ -2,7 +2,7 @@ bl_info = {
     "name": "Transfer Shape Keys (Surface Deform)",
     "description": "Transfer shape key movement by automating a surface deform modifier",
     "author": "Mysteryem",
-    "version": (1, 0, 1),
+    "version": (1, 0, 2),
     "blender": (3, 0, 0),
     "location": "View3D > Object > Link/Transfer Data",
     "tracker_url": "https://github.com/Mysteryem/Miscellaneous/issues",
@@ -14,6 +14,7 @@ Automates adding a Surface Transform modifier and applying it as a shape key for
 """
 
 import bpy
+import numpy as np
 
 class MYSTERYEM_transfer_shape_key_movement(bpy.types.Operator):
     """Transfer Shape Key movement from Selected to Active using a Surface Deform modifier"""
@@ -115,6 +116,20 @@ class MYSTERYEM_transfer_shape_key_movement(bpy.types.Operator):
                 to_shape_keys = transfer_to.data.shape_keys
                 # Remove automatically created or pre-existing 'Basis'
                 transfer_to.shape_key_remove(to_shape_keys.reference_key)
+
+                # !!!Blender doesn't automatically update mesh vertices to match basis shape key, we have to do it ourselves!
+                if bpy.app.version >= (3, 5):
+                    verts = transfer_to.data.attributes["position"].data
+                    verts_attribute = "vector"
+                else:
+                    verts = transfer_to.data.vertices
+                    verts_attribute = "co"
+                vcos = np.empty(len(transfer_to.data.vertices) * 3, dtype=np.single)
+                to_shape_keys.reference_key.data.foreach_get("co", vcos)
+                verts.foreach_set(verts_attribute, vcos)
+                
+                transfer_to.data.update()
+
                 # New basis will be our added shape key, re-name it to the same as the 'Basis' of `transfer_from`
                 to_shape_keys.reference_key.name = key_blocks[0].name
             
