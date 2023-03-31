@@ -1,8 +1,8 @@
 bl_info = {
-    "name": "Transfer Shape Key Movement",
+    "name": "Transfer Shape Keys (Surface Deform)",
     "description": "Transfer shape key movement by automating a surface deform modifier",
     "author": "Mysteryem",
-    "version": (1, 0, 0),
+    "version": (1, 0, 1),
     "blender": (3, 0, 0),
     "location": "View3D > Object > Link/Transfer Data",
     "tracker_url": "https://github.com/Mysteryem/Miscellaneous/issues",
@@ -16,9 +16,9 @@ Automates adding a Surface Transform modifier and applying it as a shape key for
 import bpy
 
 class MYSTERYEM_transfer_shape_key_movement(bpy.types.Operator):
-    """Transfer Shape Key movement from Selected to Active"""
+    """Transfer Shape Key movement from Selected to Active using a Surface Deform modifier"""
     bl_idname = "mysteryem.copy_shape_key_movement"
-    bl_label = "Transfer Shape Key Movement"
+    bl_label = "Transfer Shape Keys (Surface Deform)"
     bl_options = {"REGISTER", "UNDO"}
     
     # Properties for the Surface Deform modifier.
@@ -135,7 +135,7 @@ class MYSTERYEM_transfer_shape_key_movement(bpy.types.Operator):
 def draw_menu(self, context):
     layout = self.layout
     layout.separator()
-    layout.operator(MYSTERYEM_transfer_shape_key_movement.bl_idname, text="Transfer Shape Key Movement")
+    layout.operator(MYSTERYEM_transfer_shape_key_movement.bl_idname)
             
 def register(test=False):
     bpy.utils.register_class(MYSTERYEM_transfer_shape_key_movement)
